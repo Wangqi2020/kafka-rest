@@ -15,98 +15,101 @@
 
 package io.confluent.kafkarest;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.guava.GuavaModule;
+import com.fasterxml.jackson.datatype.jdk8.Jdk8Module;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.fasterxml.jackson.jaxrs.base.JsonMappingExceptionMapper;
+import com.fasterxml.jackson.jaxrs.base.JsonParseExceptionMapper;
+import io.confluent.kafkarest.backends.BackendsModule;
+import io.confluent.kafkarest.config.ConfigModule;
+import io.confluent.kafkarest.controllers.ControllersModule;
+import io.confluent.kafkarest.exceptions.ExceptionsModule;
+import io.confluent.kafkarest.exceptions.KafkaRestExceptionMapper;
+import io.confluent.kafkarest.extension.EnumConverterProvider;
+import io.confluent.kafkarest.extension.InstantConverterProvider;
+import io.confluent.kafkarest.extension.ResourceAccesslistFeature;
+import io.confluent.kafkarest.extension.RestResourceExtension;
+import io.confluent.kafkarest.ratelimit.RateLimitFeature;
+import io.confluent.kafkarest.resources.ResourcesFeature;
+import io.confluent.kafkarest.response.JsonStreamMessageBodyReader;
+import io.confluent.kafkarest.response.ResponseModule;
+import io.confluent.rest.Application;
 import io.confluent.rest.exceptions.ConstraintViolationExceptionMapper;
-import io.confluent.rest.exceptions.KafkaExceptionMapper;
 import io.confluent.rest.exceptions.WebApplicationExceptionMapper;
-import org.eclipse.jetty.util.StringUtil;
-
-import java.lang.reflect.Proxy;
+import java.text.SimpleDateFormat;
 import java.util.List;
 import java.util.Properties;
-
+import java.util.TimeZone;
 import javax.ws.rs.core.Configurable;
+import org.eclipse.jetty.servlet.ServletContextHandler;
+import org.eclipse.jetty.util.StringUtil;
+import org.glassfish.jersey.server.ServerProperties;
 
-import io.confluent.kafkarest.extension.ContextInvocationHandler;
-import io.confluent.kafkarest.extension.KafkaRestCleanupFilter;
-import io.confluent.kafkarest.extension.KafkaRestContextProvider;
-import io.confluent.kafkarest.extension.RestResourceExtension;
-import io.confluent.kafkarest.resources.BrokersResource;
-import io.confluent.kafkarest.resources.ConsumersResource;
-import io.confluent.kafkarest.resources.PartitionsResource;
-import io.confluent.kafkarest.resources.RootResource;
-import io.confluent.kafkarest.resources.TopicsResource;
-import io.confluent.kafkarest.v2.KafkaConsumerManager;
-import io.confluent.rest.Application;
-import io.confluent.rest.RestConfigException;
-
-
-/**
- * Utilities for configuring and running an embedded Kafka server.
- */
+/** Utilities for configuring and running an embedded Kafka server. */
 public class KafkaRestApplication extends Application<KafkaRestConfig> {
 
   List<RestResourceExtension> restResourceExtensions;
 
-  public KafkaRestApplication() throws RestConfigException {
+  public KafkaRestApplication() {
     this(new Properties());
   }
 
-  public KafkaRestApplication(Properties props) throws RestConfigException {
-    super(new KafkaRestConfig(props));
+  public KafkaRestApplication(Properties props) {
+    this(new KafkaRestConfig(props));
   }
 
   public KafkaRestApplication(KafkaRestConfig config) {
-    super(config);
-
-    restResourceExtensions = config.getConfiguredInstances(
-        KafkaRestConfig.KAFKA_REST_RESOURCE_EXTENSION_CONFIG,
-        RestResourceExtension.class);
+    this(config, /* path= */ "");
   }
 
+  public KafkaRestApplication(KafkaRestConfig config, String path) {
+    this(config, path, null);
+  }
+
+  public KafkaRestApplication(KafkaRestConfig config, String path, String listenerName) {
+    super(config, path, listenerName);
+
+    restResourceExtensions =
+        config.getConfiguredInstances(
+            KafkaRestConfig.KAFKA_REST_RESOURCE_EXTENSION_CONFIG, RestResourceExtension.class);
+    config.setMetrics(metrics);
+  }
+
+  @Override
+  public void configurePreResourceHandling(ServletContextHandler context) {}
+
+  @Override
+  public void configurePostResourceHandling(ServletContextHandler context) {}
 
   @Override
   public void setupResources(Configurable<?> config, KafkaRestConfig appConfig) {
-    setupInjectedResources(config, appConfig, null,
-        null, null, null
-    );
-  }
-
-  /**
-   * Helper that does normal setup, but uses injected components so their configs or implementations
-   * can be customized for testing. This only exists to support TestKafkaRestApplication
-   */
-  protected void setupInjectedResources(
-      Configurable<?> config, KafkaRestConfig appConfig,
-      ProducerPool producerPool,
-      KafkaConsumerManager kafkaConsumerManager,
-      AdminClientWrapper adminClientWrapperInjected,
-      ScalaConsumersContext scalaConsumersContext
-  ) {
     if (StringUtil.isBlank(appConfig.getString(KafkaRestConfig.BOOTSTRAP_SERVERS_CONFIG))
         && StringUtil.isBlank(appConfig.getString(KafkaRestConfig.ZOOKEEPER_CONNECT_CONFIG))) {
-      throw new RuntimeException("Atleast one of " + KafkaRestConfig.BOOTSTRAP_SERVERS_CONFIG + " "
-                                 + "or "
-                                    + KafkaRestConfig.ZOOKEEPER_CONNECT_CONFIG
-                                    + " needs to be configured");
+      throw new RuntimeException(
+          "Atleast one of "
+              + KafkaRestConfig.BOOTSTRAP_SERVERS_CONFIG
+              + " "
+              + "or "
+              + KafkaRestConfig.ZOOKEEPER_CONNECT_CONFIG
+              + " needs to be configured");
     }
-    KafkaRestContextProvider.initialize(config, appConfig, producerPool,
-        kafkaConsumerManager, adminClientWrapperInjected, scalaConsumersContext
-    );
-    ContextInvocationHandler contextInvocationHandler = new ContextInvocationHandler();
-    KafkaRestContext context =
-        (KafkaRestContext) Proxy.newProxyInstance(
-            KafkaRestContext.class.getClassLoader(),
-            new Class[]{KafkaRestContext.class},
-            contextInvocationHandler
-        );
-    config.register(RootResource.class);
-    config.register(new BrokersResource(context));
-    config.register(new TopicsResource(context));
-    config.register(new PartitionsResource(context));
-    config.register(new ConsumersResource(context));
-    config.register(new io.confluent.kafkarest.resources.v2.ConsumersResource(context));
-    config.register(new io.confluent.kafkarest.resources.v2.PartitionsResource(context));
-    config.register(KafkaRestCleanupFilter.class);
+
+    config.property(ServerProperties.OUTBOUND_CONTENT_LENGTH_BUFFER, 0);
+    config.register(new JsonStreamMessageBodyReader(getJsonMapper()));
+    config.register(new BackendsModule());
+    config.register(new ConfigModule(appConfig));
+    config.register(new ControllersModule());
+    config.register(new ExceptionsModule());
+    config.register(RateLimitFeature.class);
+    config.register(new ResourcesFeature(appConfig));
+    config.register(new ResponseModule());
+
+    config.register(ResourceAccesslistFeature.class);
+
+    config.register(EnumConverterProvider.class);
+    config.register(InstantConverterProvider.class);
 
     for (RestResourceExtension restResourceExtension : restResourceExtensions) {
       restResourceExtension.register(config, appConfig);
@@ -114,19 +117,29 @@ public class KafkaRestApplication extends Application<KafkaRestConfig> {
   }
 
   @Override
+  public ObjectMapper getJsonMapper() {
+    return super.getJsonMapper()
+        .registerModule(new GuavaModule())
+        .registerModule(new Jdk8Module())
+        .registerModule(new JavaTimeModule())
+        .configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false)
+        .setDateFormat(new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'"))
+        .setTimeZone(TimeZone.getTimeZone("UTC"));
+  }
+
+  @Override
   protected void registerExceptionMappers(Configurable<?> config, KafkaRestConfig restConfig) {
+    config.register(JsonParseExceptionMapper.class);
+    config.register(JsonMappingExceptionMapper.class);
     config.register(ConstraintViolationExceptionMapper.class);
     config.register(new WebApplicationExceptionMapper(restConfig));
-    config.register(new KafkaExceptionMapper(restConfig));
+    config.register(new KafkaRestExceptionMapper(restConfig));
   }
 
   @Override
   public void onShutdown() {
-
     for (RestResourceExtension restResourceExtension : restResourceExtensions) {
       restResourceExtension.clean();
     }
-
-    KafkaRestContextProvider.clean();
   }
 }

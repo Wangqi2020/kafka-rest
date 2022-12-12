@@ -16,20 +16,16 @@
 package io.confluent.kafkarest.tools;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-
+import io.confluent.common.utils.AbstractPerformanceTest;
+import io.confluent.common.utils.PerformanceStats;
+import io.confluent.kafkarest.Versions;
+import io.confluent.kafkarest.entities.v2.BinaryTopicProduceRequest;
+import io.confluent.rest.entities.ErrorMessage;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.Arrays;
-
-import io.confluent.common.utils.AbstractPerformanceTest;
-import io.confluent.common.utils.PerformanceStats;
-import io.confluent.kafkarest.Versions;
-import io.confluent.kafkarest.entities.BinaryTopicProduceRecord;
-import io.confluent.kafkarest.entities.TopicProduceRecord;
-import io.confluent.kafkarest.entities.TopicProduceRequest;
-import io.confluent.rest.entities.ErrorMessage;
 
 public class ProducerPerformance extends AbstractPerformanceTest {
 
@@ -48,9 +44,10 @@ public class ProducerPerformance extends AbstractPerformanceTest {
   public static void main(String[] args) throws Exception {
     if (args.length < 6) {
       System.out.println(
-          "Usage: java " + ProducerPerformance.class.getName() + " rest_url topic_name "
-          + "num_records record_size batch_size target_records_sec"
-      );
+          "Usage: java "
+              + ProducerPerformance.class.getName()
+              + " rest_url topic_name "
+              + "num_records record_size batch_size target_records_sec");
       System.exit(1);
     }
 
@@ -61,23 +58,20 @@ public class ProducerPerformance extends AbstractPerformanceTest {
     int batchSize = Integer.parseInt(args[4]);
     int throughput = Integer.parseInt(args[5]) / batchSize;
 
-    ProducerPerformance
-        perf =
+    ProducerPerformance perf =
         new ProducerPerformance(
-            baseUrl,
-            topic,
-            numRecords / batchSize,
-            batchSize,
-            throughput,
-            recordSize
-        );
+            baseUrl, topic, numRecords / batchSize, batchSize, throughput, recordSize);
     perf.run(throughput);
   }
 
   public ProducerPerformance(
-      String baseUrl, String topic, long iterations, int recordsPerIteration,
-      long iterationsPerSec, int recordSize
-  ) throws Exception {
+      String baseUrl,
+      String topic,
+      long iterations,
+      int recordsPerIteration,
+      long iterationsPerSec,
+      int recordSize)
+      throws Exception {
     super(iterations * recordsPerIteration);
     this.iterations = iterations;
     this.iterationsPerSec = iterationsPerSec;
@@ -86,13 +80,12 @@ public class ProducerPerformance extends AbstractPerformanceTest {
 
     /* setup perf test */
     targetUrl = baseUrl + "/topics/" + topic;
-    byte[] payload = new byte[recordSize];
-    Arrays.fill(payload, (byte) 1);
-    TopicProduceRecord record = new BinaryTopicProduceRecord(payload);
-    TopicProduceRecord[] records = new TopicProduceRecord[recordsPerIteration];
+    BinaryTopicProduceRequest.BinaryTopicProduceRecord record =
+        new BinaryTopicProduceRequest.BinaryTopicProduceRecord(null, "payload", null);
+    BinaryTopicProduceRequest.BinaryTopicProduceRecord[] records =
+        new BinaryTopicProduceRequest.BinaryTopicProduceRecord[recordsPerIteration];
     Arrays.fill(records, record);
-    TopicProduceRequest request = new TopicProduceRequest();
-    request.setRecords(Arrays.asList(records));
+    BinaryTopicProduceRequest request = BinaryTopicProduceRequest.create(Arrays.asList(records));
     requestEntity = new ObjectMapper().writeValueAsBytes(request);
     requestEntityLength = Integer.toString(requestEntity.length);
     buffer = new byte[1024 * 1024];
@@ -123,9 +116,8 @@ public class ProducerPerformance extends AbstractPerformanceTest {
         ErrorMessage errorMessage = jsonDeserializer.readValue(es, ErrorMessage.class);
         es.close();
         throw new RuntimeException(
-            String.format("Unexpected HTTP error status %d: %s",
-                          responseStatus, errorMessage.getMessage()
-            ));
+            String.format(
+                "Unexpected HTTP error status %d: %s", responseStatus, errorMessage.getMessage()));
       }
       InputStream is = connection.getInputStream();
       while (is.read(buffer) > 0) {
@@ -152,4 +144,3 @@ public class ProducerPerformance extends AbstractPerformanceTest {
     return (iteration / elapsed > iterationsPerSec);
   }
 }
-

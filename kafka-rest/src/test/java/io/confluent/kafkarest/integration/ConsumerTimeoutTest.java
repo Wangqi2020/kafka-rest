@@ -12,62 +12,63 @@
  * WARRANTIES OF ANY KIND, either express or implied.  See the License for the
  * specific language governing permissions and limitations under the License.
  */
+
 package io.confluent.kafkarest.integration;
 
-import org.junit.Before;
-import org.junit.Test;
-
-import java.util.List;
-import java.util.Properties;
-
-import javax.ws.rs.core.GenericType;
-
 import io.confluent.kafkarest.Versions;
-import io.confluent.kafkarest.entities.BinaryConsumerRecord;
 import io.confluent.kafkarest.entities.EmbeddedFormat;
-import kafka.utils.TestUtils;
-import scala.collection.JavaConversions;
+import io.confluent.kafkarest.entities.v2.BinaryConsumerRecord;
+import java.util.List;
+import javax.ws.rs.core.GenericType;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 public class ConsumerTimeoutTest extends AbstractConsumerTest {
 
   private static final String topicName = "test";
   private static final String groupName = "testconsumergroup";
 
-  private static final Integer requestTimeout = 500;
+  private static final Integer REQUEST_TIMEOUT_MS = 500;
   // This is pretty large since there is sometimes significant overhead to doing a read (e.g.
   // checking topic existence in ZK)
-  private static final Integer instanceTimeout = 1000;
-  private static final Integer slackTime = 1100;
+  // Tests have seen > 2s delays between registering the consumer and the consume
+  private static final Integer INSTANCE_TIMEOUT_MS = 3500;
+  // There is a 1s sleep in the KafkaConsumerManager cleanup thread, which means that if the
+  // instance timeout takes 1s to expire, it could be 2s before the consumer is cleaned up
+  // (if we just missed the timer) + we need to allow for slack on top of this
+  private static final Integer SLACK_TIME_MS = 2000;
 
-  @Before
+  @BeforeEach
   @Override
   public void setUp() throws Exception {
-    restProperties.setProperty("consumer.request.timeout.ms", requestTimeout.toString());
-    restProperties.setProperty("consumer.instance.timeout.ms", instanceTimeout.toString());
+    restProperties.setProperty("consumer.request.timeout.ms", REQUEST_TIMEOUT_MS.toString());
+    restProperties.setProperty("consumer.instance.timeout.ms", INSTANCE_TIMEOUT_MS.toString());
     super.setUp();
     final int numPartitions = 3;
     final int replicationFactor = 1;
-    TestUtils.createTopic(zkClient, topicName, numPartitions, replicationFactor,
-                          JavaConversions.asScalaBuffer(this.servers), new Properties());
+    createTopic(topicName, numPartitions, (short) replicationFactor);
   }
 
   @Test
   public void testConsumerTimeout() throws InterruptedException {
-    String instanceUri = startConsumeMessages(groupName, topicName, EmbeddedFormat.BINARY,
-                                              Versions.KAFKA_V1_JSON_BINARY);
+    String instanceUri =
+        startConsumeMessages(
+            groupName, topicName, EmbeddedFormat.BINARY, Versions.KAFKA_V2_JSON_BINARY, "earliest");
     // Even with identical timeouts, should be able to consume multiple times without the
     // instance timing out
-    consumeForTimeout(instanceUri, topicName,
-                      Versions.KAFKA_V1_JSON_BINARY, Versions.KAFKA_V1_JSON_BINARY,
-                      new GenericType<List<BinaryConsumerRecord>>() {
-                      });
-    consumeForTimeout(instanceUri, topicName,
-                      Versions.KAFKA_V1_JSON_BINARY, Versions.KAFKA_V1_JSON_BINARY,
-                      new GenericType<List<BinaryConsumerRecord>>() {
-                      });
+    consumeForTimeout(
+        instanceUri,
+        Versions.KAFKA_V2_JSON_BINARY,
+        Versions.KAFKA_V2_JSON_BINARY,
+        new GenericType<List<BinaryConsumerRecord>>() {});
+    consumeForTimeout(
+        instanceUri,
+        Versions.KAFKA_V2_JSON_BINARY,
+        Versions.KAFKA_V2_JSON_BINARY,
+        new GenericType<List<BinaryConsumerRecord>>() {});
     // Then sleep long enough for it to expire
-    Thread.sleep(instanceTimeout + slackTime);
+    Thread.sleep(INSTANCE_TIMEOUT_MS + SLACK_TIME_MS);
 
-    consumeForNotFoundError(instanceUri, topicName);
+    consumeForNotFoundError(instanceUri);
   }
 }

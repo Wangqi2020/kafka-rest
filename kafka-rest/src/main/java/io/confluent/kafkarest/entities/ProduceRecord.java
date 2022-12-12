@@ -15,14 +15,25 @@
 
 package io.confluent.kafkarest.entities;
 
-public interface ProduceRecord<K, V> {
+import com.google.auto.value.AutoValue;
+import javax.annotation.Nullable;
 
-  public K getKey();
+@AutoValue
+public abstract class ProduceRecord<K, V> {
 
-  public V getValue();
+  ProduceRecord() {}
 
-  // Non-standard naming so we can unify the interfaces of ProduceRecord and TopicProduceRecord,
-  // but get Jackson to behave properly, not serializing the value & triggering errors if the
-  // field is present during deserialization for types where it should always be null.
-  public Integer partition();
+  @Nullable
+  public abstract K getKey();
+
+  @Nullable
+  public abstract V getValue();
+
+  @Nullable
+  public abstract Integer getPartition();
+
+  public static <K, V> ProduceRecord<K, V> create(
+      @Nullable K key, @Nullable V value, @Nullable Integer partition) {
+    return new AutoValue_ProduceRecord<>(key, value, partition);
+  }
 }

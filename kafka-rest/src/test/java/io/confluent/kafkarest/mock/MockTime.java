@@ -12,11 +12,12 @@
  * WARRANTIES OF ANY KIND, either express or implied.  See the License for the
  * specific language governing permissions and limitations under the License.
  */
+
 package io.confluent.kafkarest.mock;
 
-import java.util.concurrent.TimeUnit;
-
 import io.confluent.kafkarest.Time;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
 public class MockTime implements Time {
 
@@ -36,6 +37,10 @@ public class MockTime implements Time {
   public void sleep(long ms) {
     currentMs += ms;
   }
+
+  @Override
+  public void waitObject(Object o, Supplier<Boolean> supplier, long l)
+      throws InterruptedException {}
 
   @Override
   public void waitOn(Object on, long ms) throws InterruptedException {

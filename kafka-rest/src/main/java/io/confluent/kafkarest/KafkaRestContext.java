@@ -15,25 +15,24 @@
 
 package io.confluent.kafkarest;
 
+import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient;
 import io.confluent.kafkarest.v2.KafkaConsumerManager;
+import org.apache.kafka.clients.admin.Admin;
+import org.apache.kafka.clients.producer.Producer;
 
 public interface KafkaRestContext {
-  public KafkaRestConfig getConfig();
 
-  public ProducerPool getProducerPool();
+  KafkaRestConfig getConfig();
 
-  @Deprecated
-  public ScalaConsumersContext getScalaConsumersContext();
+  KafkaConsumerManager getKafkaConsumerManager();
 
-  @Deprecated
-  public ConsumerManager getConsumerManager();
+  Admin getAdmin();
 
-  @Deprecated
-  public SimpleConsumerManager getSimpleConsumerManager();
+  Producer<byte[], byte[]> getProducer();
 
-  public KafkaConsumerManager getKafkaConsumerManager();
-
-  public AdminClientWrapper getAdminClientWrapper();
+  default SchemaRegistryClient getSchemaRegistryClient() {
+    return null;
+  }
 
   void shutdown();
 }

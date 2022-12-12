@@ -7,7 +7,7 @@
     <parent>
         <groupId>io.confluent</groupId>
         <artifactId>kafka-rest-parent</artifactId>
-        <version>5.4.0-SNAPSHOT</version>
+        <version>7.4.0-0</version>
     </parent>
 
     <artifactId>kafka-rest</artifactId>
@@ -19,20 +19,23 @@
         actions without using the native Kafka protocol or clients.
     </description>
 
+    <properties>
+        <io.confluent.schema-registry.version>${confluent.version.range}</io.confluent.schema-registry.version>
+    </properties>
+
     <dependencies>
+        <dependency>
+            <groupId>com.github.spotbugs</groupId>
+            <artifactId>spotbugs-annotations</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.google.auto.value</groupId>
+            <artifactId>auto-value-annotations</artifactId>
+        </dependency>
         <dependency>
             <groupId>io.confluent</groupId>
             <artifactId>rest-utils</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>io.confluent</groupId>
-            <artifactId>kafka-rest-common</artifactId>
-            <version>${project.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>io.confluent</groupId>
-            <artifactId>kafka-rest-scala-consumer</artifactId>
-            <version>${project.version}</version>
+            <version>${io.confluent.rest-utils.version}</version>
         </dependency>
         <dependency>
             <groupId>org.apache.kafka</groupId>
@@ -47,36 +50,67 @@
         <dependency>
             <groupId>io.confluent</groupId>
             <artifactId>kafka-avro-serializer</artifactId>
-            <version>5.4.0-SNAPSHOT</version>
+            <version>${io.confluent.schema-registry.version}</version>
         </dependency>
         <dependency>
             <groupId>io.confluent</groupId>
             <artifactId>kafka-json-serializer</artifactId>
-            <version>5.4.0-SNAPSHOT</version>
+            <version>${io.confluent.schema-registry.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.confluent</groupId>
+            <artifactId>kafka-json-schema-serializer</artifactId>
+            <version>${io.confluent.schema-registry.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.confluent</groupId>
+            <artifactId>kafka-protobuf-serializer</artifactId>
+            <version>${io.confluent.schema-registry.version}</version>
         </dependency>
         <dependency>
             <groupId>org.slf4j</groupId>
-            <artifactId>slf4j-log4j12</artifactId>
-            <version>${log4j.version}</version>
+            <artifactId>slf4j-reload4j</artifactId>
         </dependency>
-
+        <dependency>
+            <groupId>io.confluent</groupId>
+            <artifactId>logredactor</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.datatype</groupId>
+            <artifactId>jackson-datatype-jdk8</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.datatype</groupId>
+            <artifactId>jackson-datatype-guava</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.datatype</groupId>
+            <artifactId>jackson-datatype-jsr310</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.google.guava</groupId>
+            <artifactId>guava</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.github.resilience4j</groupId>
+            <artifactId>resilience4j-ratelimiter</artifactId>
+        </dependency>
         <dependency>
             <groupId>io.confluent</groupId>
             <artifactId>rest-utils-test</artifactId>
+            <version>${io.confluent.rest-utils.version}</version>
             <scope>test</scope>
         </dependency>
-        <!--
-            This is a workaround for IntelliJ which seems to have a problem including junit + hamcrest
-            as transitive dependencies of rest-utils-test. mvn properly resolves these, so it may have
-            something to do with special junit handling and test scopes since rest-utils-test is not in
-            <scope>test</scope>.
-        -->
         <dependency>
-            <groupId>junit</groupId>
-            <artifactId>junit</artifactId>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-api</artifactId>
             <scope>test</scope>
         </dependency>
-        <!-- End workaround -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-engine</artifactId>
+            <scope>test</scope>
+        </dependency>
         <dependency>
             <groupId>org.apache.kafka</groupId>
             <artifactId>kafka_${kafka.scala.version}</artifactId>
@@ -94,12 +128,37 @@
         <dependency>
             <groupId>io.confluent</groupId>
             <artifactId>kafka-schema-registry</artifactId>
-            <version>${project.version}</version>
+            <version>${io.confluent.schema-registry.version}</version>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.easymock</groupId>
             <artifactId>easymock</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.bouncycastle</groupId>
+            <artifactId>bcprov-jdk15on</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.bouncycastle</groupId>
+            <artifactId>bcpkix-jdk15on</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+           <groupId>org.bouncycastle</groupId>
+           <artifactId>bcprov-ext-jdk15on</artifactId>
+           <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.hamcrest</groupId>
+            <artifactId>hamcrest-all</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.glassfish.jersey.connectors</groupId>
+            <artifactId>jersey-apache-connector</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>
@@ -129,6 +188,7 @@
                     <descriptors>
                         <descriptor>src/assembly/development.xml</descriptor>
                         <descriptor>src/assembly/package.xml</descriptor>
+                        <descriptor>src/assembly/standalone.xml</descriptor>
                     </descriptors>
                     <archive>
                         <manifest>
@@ -146,20 +206,64 @@
                     </execution>
                 </executions>
             </plugin>
+
+            <plugin>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <annotationProcessorPaths>
+                        <annotationProcessorPath>
+                            <groupId>com.google.auto.value</groupId>
+                            <artifactId>auto-value</artifactId>
+                        </annotationProcessorPath>
+                        <path>
+                            <groupId>com.google.auto.service</groupId>
+                            <artifactId>auto-service-annotations</artifactId>
+                        </path>
+                    </annotationProcessorPaths>
+                </configuration>
+            </plugin>
+
+	    <plugin>
+	        <groupId>com.diffplug.spotless</groupId>
+	        <artifactId>spotless-maven-plugin</artifactId>
+                <executions>
+	            <execution>
+		        <goals>
+		            <goal>check</goal>
+		        </goals>
+		    </execution>
+	        </executions>
+            </plugin>
         </plugins>
     </build>
 
     <profiles>
         <profile>
-            <id>standalone</id>
+            <id>cloudPackageSmokeTest</id>
+            <activation>
+                <property>
+                    <name>KAFKA_REST_CLOUD_SMOKE_TESTS</name>
+                    <value>true</value>
+                </property>
+            </activation>
             <build>
                 <plugins>
+                    <!-- skip unit tests -->
                     <plugin>
-                        <artifactId>maven-assembly-plugin</artifactId>
-                        <configuration>
-                            <descriptors>
-                                <descriptor>src/assembly/standalone.xml</descriptor>
-                            </descriptors>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-surefire-plugin</artifactId>
+                        <configuration combine.self="override">
+                            <skip>true</skip>
+                        </configuration>
+                    </plugin>
+
+                    <!-- skip integration tests because they do not include smoke tests (other components have smoke tests) -->
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-failsafe-plugin</artifactId>
+                        <configuration combine.self="override">
+                            <skip>true</skip>
+                            <skipITs>true</skipITs>
                         </configuration>
                     </plugin>
                 </plugins>
